@@ -1,0 +1,5 @@
+{
+  "name": "IT Nexus - Quản lý IT Toàn diện",
+  "description": "Hệ thống quản lý Ticket, Tài sản IT và Báo cáo chi tiết cho doanh nghiệp.",
+  "requestFramePermissions": ["camera"]
+}

@@ -1,0 +1,158 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - User's unique ID
+    //   - email: string (required) - User's email address
+    //   - displayName: string (optional) - User's display name
+    //   - photoURL: string (optional) - User's photo URL
+    //   - role: string (required) - User's role (admin, user)
+    //
+    // Collection: tickets
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, size < 200) - Ticket title
+    //   - description: string (optional, size < 2000) - Ticket description
+    //   - status: string (required, enum: open, in-progress, closed) - Ticket status
+    //   - priority: string (required, enum: low, medium, high) - Ticket priority
+    //   - category: string (optional) - Ticket category
+    //   - createdBy: string (required) - UID of the creator
+    //   - creatorEmail: string (required) - Email of the creator
+    //   - assignedTo: string (optional) - Name of the IT staff assigned
+    //   - createdAt: timestamp (required) - Creation time
+    //   - updatedAt: timestamp (optional) - Last update time
+    //
+    // Collection: assets
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, size < 100) - Asset name
+    //   - type: string (required) - Asset type (Laptop, Monitor, etc.)
+    //   - serial: string (optional) - Serial number
+    //   - status: string (required, enum: active, maintenance, retired) - Asset status
+    //   - owner: string (optional) - Current owner name
+    //   - location: string (optional) - Asset location
+    //   - image: string (optional) - Base64 or URL of asset image
+    //   - createdAt: timestamp (required) - Creation time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "whoiamppt@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'user'] &&
+             (data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             (data.photoURL == null || isValidUrl(data.photoURL));
+    }
+
+    function isValidTicket(data) {
+      return hasRequiredFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.status in ['open', 'in-progress', 'closed'] &&
+             data.priority in ['low', 'medium', 'high'] &&
+             data.createdBy is string && data.createdBy == request.auth.uid &&
+             data.creatorEmail is string && isValidEmail(data.creatorEmail) &&
+             data.createdAt is timestamp &&
+             (data.description == null || (data.description is string && data.description.size() < 2000)) &&
+             (data.assignedTo == null || (data.assignedTo is string && data.assignedTo.size() < 100));
+    }
+
+    function isValidAsset(data) {
+      return hasRequiredFields(['name', 'type', 'status', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.type is string &&
+             data.status in ['active', 'maintenance', 'retired'] &&
+             data.createdAt is timestamp &&
+             (data.serial == null || (data.serial is string && data.serial.size() < 100)) &&
+             (data.owner == null || (data.owner is string && data.owner.size() < 100)) &&
+             (data.location == null || (data.location is string && data.location.size() < 100)) &&
+             (data.image == null || (data.image is string && data.image.size() < 1000000)); // Allow large for base64
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == 'user') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTicket(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || (isOwner(resource.data.createdBy) && isValidTicket(request.resource.data)));
+      allow delete: if isAdmin();
+    }
+
+    match /assets/{assetId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /facilities/{facilityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

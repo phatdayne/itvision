@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "Ticket": {
+      "title": "Ticket",
+      "description": "An IT support ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in-progress", "closed"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "category": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorEmail": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "status", "priority", "createdBy", "createdAt"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "An IT asset/device",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "serial": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "maintenance", "retired"] },
+        "owner": { "type": "string" },
+        "location": { "type": "string" },
+        "image": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A system user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "tickets": {
+      "schema": "Ticket",
+      "description": "Collection of all IT support tickets"
+    },
+    "assets": {
+      "schema": "Asset",
+      "description": "Collection of all IT assets"
+    },
+    "users": {
+      "schema": "User",
+      "description": "Collection of user profiles and roles"
+    },
+    "facilities": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" }
+        },
+        "required": ["name"]
+      },
+      "description": "Collection of company facilities/locations"
+    }
+  }
+}
