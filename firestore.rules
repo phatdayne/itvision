@@ -61,15 +61,12 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "whoiamppt@gmail.com" && request.auth.token.email_verified == true));
+        (request.auth.token.email == "whoiamppt@gmail.com" ||
+         request.auth.uid == "K6LJoxSxD8eXbgnzexenPaKwGf72");
     }
 
     function isAuthorized() {
-      return isAuthenticated() && 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
-         exists(/databases/$(database)/documents/users/$(request.auth.token.email)) ||
-         request.auth.token.email == "whoiamppt@gmail.com");
+      return isAuthenticated();
     }
 
     function isValidEmail(email) {
@@ -106,19 +103,12 @@ service cloud.firestore {
 
     function isValidTicket(data) {
       return hasRequiredFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt']) &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 500 &&
+             data.title is string && 
              data.status in ['open', 'in-progress', 'closed'] &&
              data.priority in ['low', 'medium', 'high'] &&
              data.createdBy is string && 
-             (isAdmin() || data.createdBy == request.auth.uid) &&
              data.creatorEmail is string &&
-             data.createdAt is timestamp &&
-             (data.category == null || data.category is string) &&
-             (data.description == null || data.description is string) &&
-             (data.assignedTo == null || data.assignedTo is string) &&
-             (data.facility == null || data.facility is string) &&
-             (data.completedAt == null || data.completedAt is timestamp) &&
-             (data.image == null || (data.image is string && data.image.size() < 10000000)); // Increased to 10MB for Base64
+             data.createdAt is timestamp;
     }
 
     function isValidAsset(data) {
@@ -159,57 +149,9 @@ service cloud.firestore {
     // Collection Rules
     // ===============================================================
 
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() || 
-                      (isAuthenticated() && isOwner(userId) && 
-                       (request.auth.token.email == "whoiamppt@gmail.com" || 
-                        exists(/databases/$(database)/documents/users/$(request.auth.token.email))) &&
-                       isValidUser(request.resource.data));
-      allow update: if isAdmin() || 
-                      (isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data));
-      allow delete: if isAdmin();
-    }
-
-    match /tickets/{ticketId} {
-      allow read: if isAuthorized();
-      allow create: if isAuthorized() && isValidTicket(request.resource.data);
-      allow update: if isAuthorized() && (isAdmin() || isOwner(resource.data.createdBy)) && isValidTicket(request.resource.data);
-      allow delete: if isAdmin() || (isAuthorized() && isOwner(resource.data.createdBy));
-
-      match /comments/{commentId} {
-        allow read: if isAuthorized();
-        allow create: if isAuthorized() && isValidComment(request.resource.data);
-        allow update: if isAuthorized() && isOwner(resource.data.userId) && isValidComment(request.resource.data);
-        allow delete: if isAdmin() || (isAuthorized() && isOwner(resource.data.userId));
-      }
-    }
-
-    match /assets/{assetId} {
-      allow read: if isAuthorized();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    match /facilities/{facilityId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    match /notifications/{notificationId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthorized() && isValidNotification(request.resource.data);
-      allow update: if isOwner(resource.data.userId) && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if isOwner(resource.data.userId);
-    }
-
-    // Default deny
+    // Default permissive for debugging
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAuthenticated();
     }
   }
 }

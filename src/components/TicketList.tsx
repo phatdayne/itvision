@@ -59,7 +59,18 @@ export default function TicketList() {
 
   React.useEffect(() => {
     const facilitiesQuery = query(collection(db, 'facilities'), orderBy('name', 'asc'));
-    const unsubscribeFacilities = onSnapshot(facilitiesQuery, (snapshot) => {
+    const unsubscribeFacilities = onSnapshot(facilitiesQuery, async (snapshot) => {
+      if (snapshot.empty) {
+        // Populate default facilities if empty
+        const defaultFacilities = ['Cơ sở Quận 1', 'Cơ sở Quận 7', 'Cơ sở Đà Nẵng', 'Cơ sở Hà Nội'];
+        for (const name of defaultFacilities) {
+          try {
+            await addDoc(collection(db, 'facilities'), { name });
+          } catch (e) {
+            console.error("Error populating facilities:", e);
+          }
+        }
+      }
       const facilityData = snapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name
@@ -524,16 +535,18 @@ export default function TicketList() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Cơ sở</label>
                     <select
-                      required
                       value={newTicket.facility}
                       onChange={(e) => setNewTicket({ ...newTicket, facility: e.target.value })}
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     >
-                      <option value="" disabled>Chọn cơ sở</option>
+                      <option value="">Chọn cơ sở (Tùy chọn)</option>
                       {facilities.map(f => (
                         <option key={f.id} value={f.name}>{f.name}</option>
                       ))}
                     </select>
+                    {facilities.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">Đang kết nối máy chủ, vui lòng đợi...</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Danh mục</label>

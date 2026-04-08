@@ -15,7 +15,8 @@ import firebaseConfig from '../firebase-applet-config.json';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Use (default) as fallback if named database fails or is not provided
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const googleProvider = new GoogleAuthProvider();
 
 // Operation types for error handling
