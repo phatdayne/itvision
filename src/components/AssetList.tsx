@@ -11,12 +11,14 @@ import {
   onSnapshot, 
   addDoc, 
   setDoc,
+  deleteDoc,
   doc,
   serverTimestamp, 
   OperationType, 
   handleFirestoreError 
 } from '../firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { toast } from 'sonner';
 
 export default function AssetList() {
   const { isAdmin } = useFirebase();
@@ -81,8 +83,16 @@ export default function AssetList() {
 
   const handleUpdateFacility = async (id: string, name: string) => {
     if (!isAdmin) return;
+    const promise = setDoc(doc(db, 'facilities', id), { name }, { merge: true });
+    
+    toast.promise(promise, {
+      loading: 'Đang cập nhật cơ sở...',
+      success: 'Cập nhật cơ sở thành công!',
+      error: 'Lỗi khi cập nhật cơ sở'
+    });
+
     try {
-      await setDoc(doc(db, 'facilities', id), { name }, { merge: true });
+      await promise;
       setEditingFacility(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `facilities/${id}`);
@@ -91,8 +101,16 @@ export default function AssetList() {
 
   const handleAddFacility = async () => {
     if (!isAdmin || !newFacilityName.trim()) return;
+    const promise = addDoc(collection(db, 'facilities'), { name: newFacilityName });
+
+    toast.promise(promise, {
+      loading: 'Đang thêm cơ sở...',
+      success: 'Thêm cơ sở thành công!',
+      error: 'Lỗi khi thêm cơ sở'
+    });
+
     try {
-      await addDoc(collection(db, 'facilities'), { name: newFacilityName });
+      await promise;
       setNewFacilityName('');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'facilities');
@@ -140,11 +158,20 @@ export default function AssetList() {
   const handleCreateAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
+
+    const promise = addDoc(collection(db, 'assets'), {
+      ...newAsset,
+      createdAt: serverTimestamp(),
+    });
+
+    toast.promise(promise, {
+      loading: 'Đang lưu tài sản...',
+      success: 'Lưu tài sản thành công!',
+      error: 'Lỗi khi lưu tài sản'
+    });
+
     try {
-      await addDoc(collection(db, 'assets'), {
-        ...newAsset,
-        createdAt: serverTimestamp(),
-      });
+      await promise;
       setIsModalOpen(false);
       setNewAsset({
         name: '',
@@ -158,6 +185,25 @@ export default function AssetList() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'assets');
+    }
+  };
+
+  const handleDeleteAsset = async (id: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa tài sản này?')) return;
+
+    const promise = deleteDoc(doc(db, 'assets', id));
+
+    toast.promise(promise, {
+      loading: 'Đang xóa tài sản...',
+      success: 'Xóa tài sản thành công!',
+      error: 'Lỗi khi xóa tài sản'
+    });
+
+    try {
+      await promise;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'assets');
     }
   };
 
@@ -513,8 +559,12 @@ export default function AssetList() {
                     <button className="flex-1 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                       Chi tiết
                     </button>
-                    <button className="px-3 py-2 text-slate-400 hover:text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-                      Sửa
+                    <button 
+                      onClick={() => handleDeleteAsset(asset.id)}
+                      className="px-3 py-2 text-slate-400 hover:text-red-600 border border-slate-200 rounded-lg hover:bg-red-50 transition-colors"
+                      title="Xóa"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 )}

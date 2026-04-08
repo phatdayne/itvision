@@ -27,7 +27,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: npm run build
+        run: VITE_GITHUB_PAGES=true npm run build
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v3

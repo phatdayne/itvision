@@ -13,7 +13,7 @@
         "category": { "type": "string" },
         "createdBy": { "type": "string" },
         "creatorEmail": { "type": "string" },
-        "assignedTo": { "type": "string" },
+        "assignedTo": { "type": "string", "enum": ["", "Vinh", "Phát"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -48,12 +48,32 @@
         "role": { "type": "string", "enum": ["admin", "user"] }
       },
       "required": ["uid", "email", "role"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ticketId", "userId", "userEmail", "userName", "text", "createdAt"]
     }
   },
   "firestore": {
     "tickets": {
       "schema": "Ticket",
       "description": "Collection of all IT support tickets"
+    },
+    "tickets/{ticketId}/comments": {
+      "schema": "Comment",
+      "description": "Subcollection of comments for a specific ticket"
     },
     "assets": {
       "schema": "Asset",

@@ -62,6 +62,13 @@ service cloud.firestore {
           (request.auth.token.email == "whoiamppt@gmail.com" && request.auth.token.email_verified == true));
     }
 
+    function isAuthorized() {
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+         exists(/databases/$(database)/documents/users/$(request.auth.token.email)) ||
+         request.auth.token.email == "whoiamppt@gmail.com");
+    }
+
     function isValidEmail(email) {
       return email is string &&
         email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
@@ -85,10 +92,11 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role']) &&
-             data.uid is string && data.uid == request.auth.uid &&
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt']) &&
+             (data.uid == null || (data.uid is string && (isAdmin() || data.uid == request.auth.uid))) &&
              data.email is string && isValidEmail(data.email) &&
              data.role in ['admin', 'user'] &&
+             (data.role == 'user' || isAdmin()) &&
              (data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
              (data.photoURL == null || isValidUrl(data.photoURL));
     }
@@ -98,11 +106,12 @@ service cloud.firestore {
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.status in ['open', 'in-progress', 'closed'] &&
              data.priority in ['low', 'medium', 'high'] &&
-             data.createdBy is string && data.createdBy == request.auth.uid &&
+             data.createdBy is string && 
+             (isAdmin() || data.createdBy == request.auth.uid) &&
              data.creatorEmail is string && isValidEmail(data.creatorEmail) &&
              data.createdAt is timestamp &&
              (data.description == null || (data.description is string && data.description.size() < 2000)) &&
-             (data.assignedTo == null || (data.assignedTo is string && data.assignedTo.size() < 100));
+             (data.assignedTo == null || data.assignedTo == "" || data.assignedTo in ["Vinh", "Phát"]);
     }
 
     function isValidAsset(data) {
@@ -117,27 +126,59 @@ service cloud.firestore {
              (data.image == null || (data.image is string && data.image.size() < 1000000)); // Allow large for base64
     }
 
+    function isValidNotification(data) {
+      return hasRequiredFields(['userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             data.userId is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
+             data.type in ['info', 'success', 'warning', 'error'] &&
+             data.read is bool &&
+             data.createdAt is timestamp &&
+             (data.link == null || (data.link is string && data.link.size() < 500));
+    }
+
+    function isValidComment(data) {
+      return hasRequiredFields(['ticketId', 'userId', 'userEmail', 'userName', 'text', 'createdAt']) &&
+             data.ticketId is string &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 2000 &&
+             data.createdAt is timestamp;
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    ((isOwner(userId) && request.resource.data.role == 'user') || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
-    }
-
-    match /tickets/{ticketId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidTicket(request.resource.data);
-      allow update: if isAuthenticated() && (isAdmin() || (isOwner(resource.data.createdBy) && isValidTicket(request.resource.data)));
+      allow create: if isAdmin() || 
+                      (isAuthenticated() && isOwner(userId) && 
+                       (request.auth.token.email == "whoiamppt@gmail.com" || 
+                        exists(/databases/$(database)/documents/users/$(request.auth.token.email))) &&
+                       isValidUser(request.resource.data));
+      allow update: if isAdmin() || 
+                      (isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data));
       allow delete: if isAdmin();
     }
 
+    match /tickets/{ticketId} {
+      allow read: if isAuthorized();
+      allow create: if isAuthorized() && isValidTicket(request.resource.data);
+      allow update: if isAuthorized() && (isAdmin() || isOwner(resource.data.createdBy)) && isValidTicket(request.resource.data);
+      allow delete: if isAdmin() || (isAuthorized() && isOwner(resource.data.createdBy));
+
+      match /comments/{commentId} {
+        allow read: if isAuthorized();
+        allow create: if isAuthorized() && isValidComment(request.resource.data);
+        allow update: if isAuthorized() && isOwner(resource.data.userId) && isValidComment(request.resource.data);
+        allow delete: if isAdmin() || (isAuthorized() && isOwner(resource.data.userId));
+      }
+    }
+
     match /assets/{assetId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorized();
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -148,6 +189,14 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthorized() && isValidNotification(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(resource.data.userId);
     }
 
     // Default deny

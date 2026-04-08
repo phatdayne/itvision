@@ -1,25 +1,27 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Box, BarChart3, Menu, X, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, Ticket, Box, BarChart3, Menu, X, Bell, LogOut, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useFirebase } from '../contexts/FirebaseContext';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const navItems = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Tickets', path: '/tickets', icon: Ticket },
-  { name: 'Tài sản', path: '/assets', icon: Box },
-  { name: 'Báo cáo', path: '/reports', icon: BarChart3 },
-];
-
 export default function Layout({ children }: LayoutProps) {
   const { user, logout, isAdmin } = useFirebase();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const location = useLocation();
+
+  const navItems = [
+    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Tickets', path: '/tickets', icon: Ticket },
+    { name: 'Tài sản', path: '/assets', icon: Box },
+    { name: 'Báo cáo', path: '/reports', icon: BarChart3 },
+    ...(isAdmin ? [{ name: 'Người dùng', path: '/users', icon: Users }] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
@@ -127,10 +129,7 @@ export default function Layout({ children }: LayoutProps) {
             <p className="text-slate-500">Chào mừng trở lại, {user?.displayName?.split(' ')[0] || 'bạn'}.</p>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-slate-400 hover:text-slate-600 relative">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
+            <NotificationBell />
             <div className="hidden sm:block">
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />

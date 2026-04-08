@@ -1,7 +1,7 @@
 import React from 'react';
-import { Plus, Search, Filter, MoreVertical, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Clock, CheckCircle2, AlertCircle, X, Pencil, Trash2, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ticket } from '../types';
+import { Ticket, Comment } from '../types';
 import { cn } from '@/src/lib/utils';
 import { 
   db, 
@@ -10,19 +10,32 @@ import {
   orderBy, 
   onSnapshot, 
   addDoc, 
+  updateDoc,
+  deleteDoc,
+  doc,
   serverTimestamp, 
   OperationType, 
-  handleFirestoreError 
+  handleFirestoreError,
+  createNotification,
+  getDocs,
+  where
 } from '../firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { toast } from 'sonner';
 
 export default function TicketList() {
-  const { user } = useFirebase();
+  const { user, isAdmin } = useFirebase();
   const [tickets, setTickets] = React.useState<Ticket[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+  const [isCommentModalOpen, setIsCommentModalOpen] = React.useState(false);
   const [isFilterVisible, setIsFilterVisible] = React.useState(false);
+  const [editingTicket, setEditingTicket] = React.useState<Ticket | null>(null);
+  const [selectedTicket, setSelectedTicket] = React.useState<Ticket | null>(null);
+  const [comments, setComments] = React.useState<Comment[]>([]);
+  const [newComment, setNewComment] = React.useState('');
   
   // Filter states
   const [statusFilter, setStatusFilter] = React.useState('all');
@@ -56,19 +69,59 @@ export default function TicketList() {
     return () => unsubscribe();
   }, []);
 
+  React.useEffect(() => {
+    if (!selectedTicket) {
+      setComments([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'tickets', selectedTicket.id, 'comments'),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const commentData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Comment[];
+      setComments(commentData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `tickets/${selectedTicket.id}/comments`);
+    });
+
+    return () => unsubscribe();
+  }, [selectedTicket?.id]);
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
     try {
-      await addDoc(collection(db, 'tickets'), {
+      const docRef = await addDoc(collection(db, 'tickets'), {
         ...newTicket,
         createdBy: user.uid,
         creatorEmail: user.email,
         createdAt: serverTimestamp(),
       });
-      
+
+      toast.success('Tạo ticket thành công!');
       setIsModalOpen(false);
+
+      // Notify Admins
+      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+      adminsSnapshot.forEach(adminDoc => {
+        if (adminDoc.id !== user.uid) {
+          createNotification(
+            adminDoc.id,
+            'Ticket mới được tạo',
+            `Người dùng ${user.email} đã tạo ticket: ${newTicket.title}`,
+            'info',
+            '/tickets'
+          );
+        }
+      });
+
       setNewTicket({
         title: '',
         description: '',
@@ -79,6 +132,112 @@ export default function TicketList() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'tickets');
+    }
+  };
+
+  const handleUpdateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTicket) return;
+
+    try {
+      await updateDoc(doc(db, 'tickets', editingTicket.id), {
+        title: editingTicket.title,
+        description: editingTicket.description,
+        category: editingTicket.category,
+        priority: editingTicket.priority,
+        assignedTo: editingTicket.assignedTo,
+        status: editingTicket.status,
+        updatedAt: serverTimestamp()
+      });
+
+      toast.success('Cập nhật ticket thành công!');
+      setIsEditModalOpen(false);
+
+      // Notify the creator if someone else updated it
+      if (user && editingTicket.createdBy !== user.uid) {
+        createNotification(
+          editingTicket.createdBy,
+          'Ticket của bạn đã được cập nhật',
+          `Trạng thái: ${editingTicket.status}, Người xử lý: ${editingTicket.assignedTo || 'Chưa phân công'}`,
+          'success',
+          '/tickets'
+        );
+      }
+
+      setEditingTicket(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tickets');
+    }
+  };
+
+  const handleDeleteTicket = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa ticket này?')) return;
+
+    const promise = deleteDoc(doc(db, 'tickets', id));
+
+    toast.promise(promise, {
+      loading: 'Đang xóa ticket...',
+      success: 'Xóa ticket thành công!',
+      error: 'Lỗi khi xóa ticket'
+    });
+
+    try {
+      await promise;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'tickets');
+    }
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedTicket || !newComment.trim()) return;
+
+    const commentText = newComment.trim();
+    setNewComment('');
+
+    try {
+      await addDoc(collection(db, 'tickets', selectedTicket.id, 'comments'), {
+        ticketId: selectedTicket.id,
+        userId: user.uid,
+        userEmail: user.email,
+        userName: user.displayName || user.email,
+        userPhoto: user.photoURL || '',
+        text: commentText,
+        createdAt: serverTimestamp()
+      });
+
+      // Notify the other party
+      const isCreator = user.uid === selectedTicket.createdBy;
+      const recipientId = isCreator ? (selectedTicket.assignedTo === 'Vinh' || selectedTicket.assignedTo === 'Phát' ? null : null) : selectedTicket.createdBy;
+      
+      // If creator comments, notify assigned person or all admins
+      if (isCreator) {
+        // Simple logic: notify all admins if creator comments
+        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+        adminsSnapshot.forEach(adminDoc => {
+          if (adminDoc.id !== user.uid) {
+            createNotification(
+              adminDoc.id,
+              'Bình luận mới trên Ticket',
+              `${user.email} đã bình luận: ${commentText}`,
+              'info',
+              '/tickets'
+            );
+          }
+        });
+      } else {
+        // If someone else comments, notify the creator
+        createNotification(
+          selectedTicket.createdBy,
+          'Có bình luận mới trên Ticket của bạn',
+          `${user.email}: ${commentText}`,
+          'info',
+          '/tickets'
+        );
+      }
+
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `tickets/${selectedTicket.id}/comments`);
     }
   };
 
@@ -297,13 +456,15 @@ export default function TicketList() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Người xử lý</label>
-                    <input
-                      type="text"
+                    <select
                       value={newTicket.assignedTo}
                       onChange={(e) => setNewTicket({ ...newTicket, assignedTo: e.target.value })}
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      placeholder="Tên nhân viên IT..."
-                    />
+                    >
+                      <option value="">Chưa phân công</option>
+                      <option value="Vinh">Vinh</option>
+                      <option value="Phát">Phát</option>
+                    </select>
                   </div>
                 </div>
                 <div className="pt-4 flex gap-3">
@@ -322,6 +483,211 @@ export default function TicketList() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Ticket Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingTicket && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-slate-900">Chỉnh sửa Ticket</h3>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateTicket} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tiêu đề</label>
+                  <input
+                    required
+                    type="text"
+                    value={editingTicket.title}
+                    onChange={(e) => setEditingTicket({ ...editingTicket, title: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={editingTicket.description}
+                    onChange={(e) => setEditingTicket({ ...editingTicket, description: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Danh mục</label>
+                    <select
+                      value={editingTicket.category}
+                      onChange={(e) => setEditingTicket({ ...editingTicket, category: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="Hardware">Phần cứng</option>
+                      <option value="Software">Phần mềm</option>
+                      <option value="Network">Mạng</option>
+                      <option value="Account">Tài khoản</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Mức độ ưu tiên</label>
+                    <select
+                      value={editingTicket.priority}
+                      onChange={(e) => setEditingTicket({ ...editingTicket, priority: e.target.value as any })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="low">Thấp</option>
+                      <option value="medium">Trung bình</option>
+                      <option value="high">Cao</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Người xử lý</label>
+                    <select
+                      value={editingTicket.assignedTo}
+                      onChange={(e) => setEditingTicket({ ...editingTicket, assignedTo: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="">Chưa phân công</option>
+                      <option value="Vinh">Vinh</option>
+                      <option value="Phát">Phát</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Trạng thái</label>
+                    <select
+                      value={editingTicket.status}
+                      onChange={(e) => setEditingTicket({ ...editingTicket, status: e.target.value as any })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="open">Mở</option>
+                      <option value="in-progress">Đang xử lý</option>
+                      <option value="closed">Đã đóng</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200"
+                  >
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Comment Modal */}
+      <AnimatePresence>
+        {isCommentModalOpen && selectedTicket && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Thảo luận Ticket</h3>
+                  <p className="text-sm text-slate-500 mt-1">#{selectedTicket.id.slice(-6)} - {selectedTicket.title}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsCommentModalOpen(false);
+                    setSelectedTicket(null);
+                  }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 min-h-[300px]">
+                {comments.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-12">
+                    <MessageSquare className="w-12 h-12 text-slate-200 mb-3" />
+                    <p className="text-slate-500">Chưa có bình luận nào. Hãy bắt đầu cuộc thảo luận!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {comments.map((comment) => (
+                      <div 
+                        key={comment.id} 
+                        className={cn(
+                          "flex gap-3 max-w-[85%]",
+                          comment.userId === user?.uid ? "ml-auto flex-row-reverse" : ""
+                        )}
+                      >
+                        <div className="flex-shrink-0">
+                          {comment.userPhoto ? (
+                            <img src={comment.userPhoto} alt="" className="w-8 h-8 rounded-full shadow-sm" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-[10px] shadow-sm">
+                              {comment.userName[0]}
+                            </div>
+                          )}
+                        </div>
+                        <div className={cn(
+                          "space-y-1",
+                          comment.userId === user?.uid ? "text-right" : "text-left"
+                        )}>
+                          <div className={cn(
+                            "p-3 rounded-2xl text-sm shadow-sm",
+                            comment.userId === user?.uid 
+                              ? "bg-indigo-600 text-white rounded-tr-none" 
+                              : "bg-white border border-slate-100 text-slate-700 rounded-tl-none"
+                          )}>
+                            {comment.text}
+                          </div>
+                          <p className="text-[10px] text-slate-400 px-1">
+                            {comment.userName} • {comment.createdAt?.toDate().toLocaleString('vi-VN')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-white">
+                <form onSubmit={handleAddComment} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Nhập bình luận của bạn..."
+                    className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newComment.trim()}
+                    className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </form>
+              </div>
             </motion.div>
           </div>
         )}
@@ -402,9 +768,39 @@ export default function TicketList() {
                       {ticket.createdAt?.toDate().toLocaleDateString('vi-VN')}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setIsCommentModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-colors relative"
+                          title="Thảo luận"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        {(isAdmin || user?.uid === ticket.createdBy) && (
+                          <>
+                            <button 
+                              onClick={() => {
+                                setEditingTicket(ticket);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTicket(ticket.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </motion.tr>
                 ))

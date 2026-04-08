@@ -33,3 +33,25 @@ export interface UserProfile {
   photoURL?: string;
   role: 'admin' | 'user';
 }
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  link?: string;
+  createdAt: Timestamp;
+}
+
+export interface Comment {
+  id: string;
+  ticketId: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userPhoto?: string;
+  text: string;
+  createdAt: Timestamp;
+}
