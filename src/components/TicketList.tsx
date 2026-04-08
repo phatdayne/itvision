@@ -1019,26 +1019,24 @@ export default function TicketList() {
                         >
                           <MessageSquare className="w-4 h-4" />
                         </button>
+                        <button 
+                          onClick={() => {
+                            setEditingTicket(ticket);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         {(isAdmin || user?.uid === ticket.createdBy) && (
-                          <>
-                            <button 
-                              onClick={() => {
-                                setEditingTicket(ticket);
-                                setIsEditModalOpen(true);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-colors"
-                              title="Chỉnh sửa"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteTicket(ticket.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
+                          <button 
+                            onClick={() => handleDeleteTicket(ticket.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </td>
