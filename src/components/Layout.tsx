@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Box, BarChart3, Menu, X, Bell, LogOut, Users, Eye } from 'lucide-react';
+import { LayoutDashboard, Ticket, Box, BarChart3, Menu, X, Bell, LogOut, Users, ScanEye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -29,15 +29,12 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0">
         <div className="p-6 border-b border-slate-100">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden group-hover:border-indigo-200 transition-colors">
-              <img 
-                src="https://storage.googleapis.com/app-builder-assets/6xbl22pxtvtg6cuvmcqddb/87968502-3932-4977-8898-9635e98544e3.png" 
-                alt="Logo" 
-                className="w-full h-full object-contain p-1"
-                referrerPolicy="no-referrer"
-              />
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl flex items-center justify-center shadow-md shadow-indigo-100 group-hover:scale-105 transition-all duration-300">
+              <ScanEye className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-indigo-600">IT Vision</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              IT <span className="text-indigo-600">Vision</span>
+            </h1>
           </Link>
         </div>
         <nav className="flex-1 p-4 space-y-1">
@@ -84,15 +81,12 @@ export default function Layout({ children }: LayoutProps) {
       {/* Mobile Header */}
       <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden">
-            <img 
-              src="https://storage.googleapis.com/app-builder-assets/6xbl22pxtvtg6cuvmcqddb/87968502-3932-4977-8898-9635e98544e3.png" 
-              alt="Logo" 
-              className="w-full h-full object-contain p-1"
-              referrerPolicy="no-referrer"
-            />
+          <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-lg flex items-center justify-center shadow-sm">
+            <ScanEye className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-lg font-bold text-indigo-600">IT Vision</h1>
+          <h1 className="text-lg font-bold tracking-tight text-slate-900">
+            IT <span className="text-indigo-600">Vision</span>
+          </h1>
         </Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

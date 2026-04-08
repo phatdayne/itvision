@@ -5,7 +5,7 @@ import TicketList from './components/TicketList';
 import AssetList from './components/AssetList';
 import Reports from './components/Reports';
 import { FirebaseProvider, useFirebase } from './contexts/FirebaseContext';
-import { LogIn, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, LogOut, Eye } from 'lucide-react';
+import { LogIn, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, LogOut, ScanEye } from 'lucide-react';
 import { useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import UserManagement from './components/UserManagement';
@@ -50,15 +50,12 @@ function AppContent() {
       {!user ? (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
           <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
-            <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100 overflow-hidden">
-              <img 
-                src="https://storage.googleapis.com/app-builder-assets/6xbl22pxtvtg6cuvmcqddb/87968502-3932-4977-8898-9635e98544e3.png" 
-                alt="IT Vision Logo" 
-                className="w-full h-full object-contain p-2"
-                referrerPolicy="no-referrer"
-              />
+            <div className="w-24 h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200 group transition-all duration-500 hover:rotate-3">
+              <ScanEye className="w-12 h-12 text-white group-hover:scale-110 transition-transform duration-300" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">IT Vision</h1>
+            <h1 className="text-3xl font-extrabold text-slate-900 text-center mb-2 tracking-tight">
+              IT <span className="text-indigo-600">Vision</span>
+            </h1>
             <p className="text-slate-500 text-center mb-8">
               {isRegistering ? 'Tạo tài khoản mới' : 'Vui lòng đăng nhập để tiếp tục'}
             </p>
