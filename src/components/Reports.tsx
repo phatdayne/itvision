@@ -1,12 +1,18 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Ticket } from '../types';
-import { Calendar, Download, FileText, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar, Download, FileText, Clock, CheckCircle2, FileSpreadsheet, Filter } from 'lucide-react';
 import { db, collection, query, onSnapshot, OperationType, handleFirestoreError } from '../firebase';
+import * as XLSX from 'xlsx';
 
 export default function Reports() {
   const [tickets, setTickets] = React.useState<Ticket[]>([]);
   const [loading, setLoading] = React.useState(true);
+  
+  // Filter states
+  const [filterDay, setFilterDay] = React.useState<string>('');
+  const [filterMonth, setFilterMonth] = React.useState<string>('');
+  const [filterYear, setFilterYear] = React.useState<string>(new Date().getFullYear().toString());
 
   React.useEffect(() => {
     const q = query(collection(db, 'tickets'));
@@ -25,19 +31,41 @@ export default function Reports() {
     return () => unsubscribe();
   }, []);
 
+  // Filtered tickets based on selection
+  const filteredTickets = React.useMemo(() => {
+    return tickets.filter(t => {
+      if (!t.createdAt) return false;
+      const date = t.createdAt.toDate();
+      
+      const matchYear = filterYear === '' || date.getFullYear().toString() === filterYear;
+      const matchMonth = filterMonth === '' || (date.getMonth() + 1).toString() === filterMonth;
+      const matchDay = filterDay === '' || date.getDate().toString() === filterDay;
+      
+      return matchYear && matchMonth && matchDay;
+    });
+  }, [tickets, filterDay, filterMonth, filterYear]);
+
   // Process data for daily report
   const getDailyStats = () => {
     const stats: { [key: string]: { date: string, total: number, closed: number, open: number } } = {};
     
-    // Last 7 days
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-      stats[dateStr] = { date: dateStr, total: 0, closed: 0, open: 0 };
+    // Last 7 days or selected month's days
+    if (filterMonth !== '' && filterYear !== '') {
+      const daysInMonth = new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate();
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dateStr = `${i.toString().padStart(2, '0')}/${filterMonth.padStart(2, '0')}`;
+        stats[dateStr] = { date: dateStr, total: 0, closed: 0, open: 0 };
+      }
+    } else {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+        stats[dateStr] = { date: dateStr, total: 0, closed: 0, open: 0 };
+      }
     }
 
-    tickets.forEach(t => {
+    filteredTickets.forEach(t => {
       if (!t.createdAt) return;
       const date = t.createdAt.toDate();
       const dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
@@ -53,7 +81,7 @@ export default function Reports() {
 
   const getStatusDistribution = () => {
     const stats = { open: 0, 'in-progress': 0, closed: 0 };
-    tickets.forEach(t => {
+    filteredTickets.forEach(t => {
       stats[t.status]++;
     });
     return [
@@ -65,7 +93,7 @@ export default function Reports() {
 
   const getAssigneePerformance = () => {
     const assignees: { [key: string]: { name: string, total: number, closed: number } } = {};
-    tickets.forEach(t => {
+    filteredTickets.forEach(t => {
       const name = t.assignedTo || 'Chưa phân công';
       if (!assignees[name]) assignees[name] = { name, total: 0, closed: 0 };
       assignees[name].total++;
@@ -74,29 +102,115 @@ export default function Reports() {
     return Object.values(assignees).sort((a, b) => b.total - a.total);
   };
 
+  const exportToExcel = () => {
+    const dataToExport = filteredTickets.map(t => ({
+      'Mã Ticket': t.id,
+      'Tiêu đề': t.title,
+      'Mô tả': t.description,
+      'Danh mục': t.category,
+      'Trạng thái': t.status === 'open' ? 'Mở' : t.status === 'in-progress' ? 'Đang xử lý' : 'Đã đóng',
+      'Ưu tiên': t.priority === 'high' ? 'Cao' : t.priority === 'medium' ? 'Trung bình' : 'Thấp',
+      'Người yêu cầu': t.creatorEmail,
+      'Người xử lý': t.assignedTo || 'Chưa phân công',
+      'Ngày tạo': t.createdAt?.toDate().toLocaleString('vi-VN'),
+      'Ngày hoàn thành': t.completedAt?.toDate().toLocaleString('vi-VN') || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tickets");
+    
+    // Generate filename based on filters
+    let filename = 'Bao_cao_ticket';
+    if (filterDay) filename += `_Ngay_${filterDay}`;
+    if (filterMonth) filename += `_Thang_${filterMonth}`;
+    if (filterYear) filename += `_Nam_${filterYear}`;
+    filename += '.xlsx';
+
+    XLSX.writeFile(workbook, filename);
+  };
+
   const dailyData = getDailyStats();
   const statusData = getStatusDistribution();
   const assigneeData = getAssigneePerformance();
+
+  const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+  const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
 
   if (loading) return <div className="p-8 text-center text-slate-500">Đang tải báo cáo...</div>;
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Báo cáo IT Support</h2>
           <p className="text-slate-500">Theo dõi hiệu suất xử lý ticket hằng ngày</p>
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-            <Download className="w-4 h-4" />
-            Xuất PDF
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
-            <Calendar className="w-4 h-4" />
-            7 ngày qua
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Xuất Excel
           </button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2 text-slate-500 mr-2">
+          <Filter className="w-4 h-4" />
+          <span className="text-sm font-medium">Bộ lọc:</span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-400 uppercase">Ngày</label>
+          <select 
+            value={filterDay} 
+            onChange={(e) => setFilterDay(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+          >
+            <option value="">Tất cả</option>
+            {days.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-400 uppercase">Tháng</label>
+          <select 
+            value={filterMonth} 
+            onChange={(e) => setFilterMonth(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+          >
+            <option value="">Tất cả</option>
+            {months.map(m => <option key={m} value={m}>Tháng {m}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-400 uppercase">Năm</label>
+          <select 
+            value={filterYear} 
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+          >
+            <option value="">Tất cả</option>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+
+        <button 
+          onClick={() => {
+            setFilterDay('');
+            setFilterMonth('');
+            setFilterYear(new Date().getFullYear().toString());
+          }}
+          className="text-xs font-bold text-indigo-600 hover:text-indigo-700 ml-auto"
+        >
+          Đặt lại
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

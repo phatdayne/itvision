@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Box, User, Calendar, Tag, ShieldCheck, AlertTriangle, Camera, X, MapPin, Filter, Trash2 } from 'lucide-react';
+import { Plus, Search, Box, User, Calendar, Tag, ShieldCheck, AlertTriangle, Camera, X, MapPin, Filter, Trash2, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Asset } from '../types';
 import { cn } from '@/src/lib/utils';
@@ -32,6 +32,8 @@ export default function AssetList() {
   const [isCameraOpen, setIsCameraOpen] = React.useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [newAsset, setNewAsset] = React.useState({
     name: '',
@@ -152,6 +154,21 @@ export default function AssetList() {
         setNewAsset({ ...newAsset, image: imageData });
         stopCamera();
       }
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Firestore documents
+        toast.error('Kích thước ảnh quá lớn (tối đa 1MB).');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewAsset({ ...newAsset, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -397,14 +414,36 @@ export default function AssetList() {
                           </div>
                         </div>
                       ) : (
-                        <button 
-                          type="button"
-                          onClick={startCamera}
-                          className="flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <Camera className="w-10 h-10" />
-                          <span className="text-sm font-medium">Chụp ảnh tài sản</span>
-                        </button>
+                        <div className="flex flex-col items-center gap-4">
+                          <button 
+                            type="button"
+                            onClick={startCamera}
+                            className="flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Camera className="w-10 h-10" />
+                            <span className="text-sm font-medium">Chụp ảnh</span>
+                          </button>
+                          <div className="flex items-center gap-2 w-full px-8">
+                            <div className="h-px bg-slate-200 flex-1"></div>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">Hoặc</span>
+                            <div className="h-px bg-slate-200 flex-1"></div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Upload className="w-10 h-10" />
+                            <span className="text-sm font-medium">Tải ảnh lên</span>
+                          </button>
+                          <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileUpload} 
+                            accept="image/*" 
+                            className="hidden" 
+                          />
+                        </div>
                       )}
                       <canvas ref={canvasRef} className="hidden" />
                     </div>

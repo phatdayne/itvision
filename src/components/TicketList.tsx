@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Filter, MoreVertical, Clock, CheckCircle2, AlertCircle, X, Pencil, Trash2, MessageSquare, Send } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Clock, CheckCircle2, AlertCircle, X, Pencil, Trash2, MessageSquare, Send, Upload, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Ticket, Comment } from '../types';
 import { cn } from '@/src/lib/utils';
@@ -36,6 +36,7 @@ export default function TicketList() {
   const [selectedTicket, setSelectedTicket] = React.useState<Ticket | null>(null);
   const [comments, setComments] = React.useState<Comment[]>([]);
   const [newComment, setNewComment] = React.useState('');
+  const [facilities, setFacilities] = React.useState<{id: string, name: string}[]>([]);
   
   // Filter states
   const [statusFilter, setStatusFilter] = React.useState('all');
@@ -43,14 +44,36 @@ export default function TicketList() {
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const [newTicket, setNewTicket] = React.useState({
     title: '',
     description: '',
     category: 'Hardware',
     priority: 'medium' as const,
     assignedTo: '',
-    status: 'open' as const
+    status: 'open' as const,
+    facility: '',
+    image: ''
   });
+
+  React.useEffect(() => {
+    const facilitiesQuery = query(collection(db, 'facilities'), orderBy('name', 'asc'));
+    const unsubscribeFacilities = onSnapshot(facilitiesQuery, (snapshot) => {
+      const facilityData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name
+      }));
+      setFacilities(facilityData);
+      if (facilityData.length > 0 && !newTicket.facility) {
+        setNewTicket(prev => ({ ...prev, facility: facilityData[0].name }));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'facilities');
+    });
+
+    return () => unsubscribeFacilities();
+  }, []);
 
   React.useEffect(() => {
     const q = query(collection(db, 'tickets'), orderBy('createdAt', 'desc'));
@@ -93,6 +116,21 @@ export default function TicketList() {
     return () => unsubscribe();
   }, [selectedTicket?.id]);
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Kích thước ảnh quá lớn (tối đa 5MB).');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewTicket({ ...newTicket, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -128,7 +166,9 @@ export default function TicketList() {
         category: 'Hardware',
         priority: 'medium',
         assignedTo: '',
-        status: 'open'
+        status: 'open',
+        facility: facilities[0]?.name || '',
+        image: ''
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'tickets');
@@ -140,15 +180,26 @@ export default function TicketList() {
     if (!editingTicket) return;
 
     try {
-      await updateDoc(doc(db, 'tickets', editingTicket.id), {
+      const originalTicket = tickets.find(t => t.id === editingTicket.id);
+      const isNowClosing = editingTicket.status === 'closed' && originalTicket?.status !== 'closed';
+      
+      const updateData: any = {
         title: editingTicket.title,
         description: editingTicket.description,
         category: editingTicket.category,
         priority: editingTicket.priority,
         assignedTo: editingTicket.assignedTo,
         status: editingTicket.status,
+        facility: editingTicket.facility || '',
+        image: editingTicket.image || '',
         updatedAt: serverTimestamp()
-      });
+      };
+
+      if (isNowClosing) {
+        updateData.completedAt = serverTimestamp();
+      }
+
+      await updateDoc(doc(db, 'tickets', editingTicket.id), updateData);
 
       toast.success('Cập nhật ticket thành công!');
       setIsEditModalOpen(false);
@@ -185,6 +236,48 @@ export default function TicketList() {
       await promise;
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'tickets');
+    }
+  };
+
+  const handleQuickStatusUpdate = async (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
+    try {
+      const originalTicket = tickets.find(t => t.id === ticketId);
+      const isNowClosing = newStatus === 'closed' && originalTicket?.status !== 'closed';
+      
+      const updateData: any = {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      };
+
+      if (isNowClosing) {
+        updateData.completedAt = serverTimestamp();
+      }
+
+      await updateDoc(doc(db, 'tickets', ticketId), updateData);
+      
+      // Update local state if selectedTicket is open
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket({ ...selectedTicket, status: newStatus });
+      }
+
+      toast.success('Cập nhật trạng thái thành công!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tickets');
+    }
+  };
+
+  const handleEditFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editingTicket) {
+      if (file.size > 1024 * 1024) {
+        toast.error('Kích thước ảnh quá lớn (tối đa 1MB).');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditingTicket({ ...editingTicket, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -418,9 +511,8 @@ export default function TicketList() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết (Tùy chọn)</label>
                   <textarea
-                    required
                     rows={3}
                     value={newTicket.description}
                     onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
@@ -429,6 +521,20 @@ export default function TicketList() {
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Cơ sở</label>
+                    <select
+                      required
+                      value={newTicket.facility}
+                      onChange={(e) => setNewTicket({ ...newTicket, facility: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="" disabled>Chọn cơ sở</option>
+                      {facilities.map(f => (
+                        <option key={f.id} value={f.name}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Danh mục</label>
                     <select
@@ -465,6 +571,38 @@ export default function TicketList() {
                       <option value="Vinh">Vinh</option>
                       <option value="Phát">Phát</option>
                     </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Hình ảnh đính kèm (Tùy chọn)</label>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Tải ảnh lên
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    {newTicket.image && (
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                        <img src={newTicket.image} className="w-full h-full object-cover" alt="Preview" />
+                        <button
+                          type="button"
+                          onClick={() => setNewTicket({ ...newTicket, image: '' })}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="pt-4 flex gap-3">
@@ -516,9 +654,8 @@ export default function TicketList() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết (Tùy chọn)</label>
                   <textarea
-                    required
                     rows={3}
                     value={editingTicket.description}
                     onChange={(e) => setEditingTicket({ ...editingTicket, description: e.target.value })}
@@ -526,6 +663,20 @@ export default function TicketList() {
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Cơ sở</label>
+                    <select
+                      required
+                      value={editingTicket.facility}
+                      onChange={(e) => setEditingTicket({ ...editingTicket, facility: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    >
+                      <option value="" disabled>Chọn cơ sở</option>
+                      {facilities.map(f => (
+                        <option key={f.id} value={f.name}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Danh mục</label>
                     <select
@@ -576,6 +727,38 @@ export default function TicketList() {
                     </select>
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Hình ảnh đính kèm</label>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Thay đổi ảnh
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleEditFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    {editingTicket.image && (
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                        <img src={editingTicket.image} className="w-full h-full object-cover" alt="Preview" />
+                        <button
+                          type="button"
+                          onClick={() => setEditingTicket({ ...editingTicket, image: '' })}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div className="pt-4 flex gap-3">
                   <button
                     type="button"
@@ -608,9 +791,25 @@ export default function TicketList() {
               className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">Thảo luận Ticket</h3>
-                  <p className="text-sm text-slate-500 mt-1">#{selectedTicket.id.slice(-6)} - {selectedTicket.title}</p>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Thảo luận Ticket</h3>
+                    <p className="text-sm text-slate-500 mt-1">#{selectedTicket.id.slice(-6)} - {selectedTicket.title}</p>
+                  </div>
+                  {(isAdmin || user?.uid === selectedTicket.createdBy) && (
+                    <div className="ml-4 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái:</span>
+                      <select
+                        value={selectedTicket.status}
+                        onChange={(e) => handleQuickStatusUpdate(selectedTicket.id, e.target.value as any)}
+                        className="text-sm font-medium bg-transparent border-none focus:ring-0 p-0 cursor-pointer text-indigo-600"
+                      >
+                        <option value="open">Mở</option>
+                        <option value="in-progress">Đang xử lý</option>
+                        <option value="closed">Đã đóng</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -699,7 +898,7 @@ export default function TicketList() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ticket</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ticket / Cơ sở</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người yêu cầu</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người xử lý</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
@@ -727,9 +926,24 @@ export default function TicketList() {
                     className="hover:bg-slate-50 transition-colors group"
                   >
                     <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{ticket.title}</p>
-                        <p className="text-xs text-slate-500 mt-1">{ticket.category}</p>
+                      <div className="flex items-center gap-3">
+                        {ticket.image && (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                            <img src={ticket.image} className="w-full h-full object-cover" alt="" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{ticket.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{ticket.category}</span>
+                            {ticket.facility && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">{ticket.facility}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -765,7 +979,20 @@ export default function TicketList() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-500">
-                      {ticket.createdAt?.toDate().toLocaleDateString('vi-VN')}
+                      <div>
+                        {ticket.createdAt?.toDate().toLocaleDateString('vi-VN')}
+                        {ticket.completedAt && (
+                          <div className="mt-1 text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Xong: {ticket.completedAt.toDate().toLocaleString('vi-VN', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit'
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">

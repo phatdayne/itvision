@@ -3,15 +3,18 @@ import { Timestamp } from 'firebase/firestore';
 export interface Ticket {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   status: 'open' | 'in-progress' | 'closed';
   priority: 'low' | 'medium' | 'high';
   category: string;
+  facility?: string;
   createdBy: string;
   creatorEmail: string;
   assignedTo?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
+  completedAt?: Timestamp;
+  image?: string;
 }
 
 export interface Asset {

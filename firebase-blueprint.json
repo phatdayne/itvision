@@ -11,11 +11,14 @@
         "status": { "type": "string", "enum": ["open", "in-progress", "closed"] },
         "priority": { "type": "string", "enum": ["low", "medium", "high"] },
         "category": { "type": "string" },
+        "facility": { "type": "string" },
         "createdBy": { "type": "string" },
         "creatorEmail": { "type": "string" },
         "assignedTo": { "type": "string", "enum": ["", "Vinh", "Phát"] },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "image": { "type": "string" }
       },
       "required": ["title", "status", "priority", "createdBy", "createdAt"]
     },

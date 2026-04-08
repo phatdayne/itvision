@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -6,7 +7,6 @@ import AssetList from './components/AssetList';
 import Reports from './components/Reports';
 import { FirebaseProvider, useFirebase } from './contexts/FirebaseContext';
 import { LogIn, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, LogOut, ScanEye } from 'lucide-react';
-import { useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import UserManagement from './components/UserManagement';
 
