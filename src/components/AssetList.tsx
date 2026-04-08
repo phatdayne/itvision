@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Box, User, Calendar, Tag, ShieldCheck, AlertTriangle, Camera, X, MapPin, Filter, Trash2, Upload } from 'lucide-react';
+import { Plus, Search, Box, User, Calendar, Tag, ShieldCheck, AlertTriangle, Camera, X, MapPin, Filter, Trash2, Upload, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Asset } from '../types';
 import { cn } from '@/src/lib/utils';
@@ -19,6 +19,7 @@ import {
 } from '../firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 export default function AssetList() {
   const { isAdmin } = useFirebase();
@@ -84,7 +85,6 @@ export default function AssetList() {
   }, []);
 
   const handleUpdateFacility = async (id: string, name: string) => {
-    if (!isAdmin) return;
     const promise = setDoc(doc(db, 'facilities', id), { name }, { merge: true });
     
     toast.promise(promise, {
@@ -102,7 +102,7 @@ export default function AssetList() {
   };
 
   const handleAddFacility = async () => {
-    if (!isAdmin || !newFacilityName.trim()) return;
+    if (!newFacilityName.trim()) return;
     const promise = addDoc(collection(db, 'facilities'), { name: newFacilityName });
 
     toast.promise(promise, {
@@ -174,7 +174,6 @@ export default function AssetList() {
 
   const handleCreateAsset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
 
     const promise = addDoc(collection(db, 'assets'), {
       ...newAsset,
@@ -206,7 +205,6 @@ export default function AssetList() {
   };
 
   const handleDeleteAsset = async (id: string) => {
-    if (!isAdmin) return;
     if (!window.confirm('Bạn có chắc chắn muốn xóa tài sản này?')) return;
 
     const promise = deleteDoc(doc(db, 'assets', id));
@@ -222,6 +220,35 @@ export default function AssetList() {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'assets');
     }
+  };
+
+  const exportToExcel = () => {
+    if (filteredAssets.length === 0) {
+      toast.error('Không có dữ liệu để xuất!');
+      return;
+    }
+
+    const dataToExport = filteredAssets.map(a => ({
+      'Tên tài sản': a.name,
+      'Loại': a.type,
+      'Số Serial': a.serial,
+      'Trạng thái': a.status === 'deployed' ? 'Đã cấp phát' : a.status === 'in-stock' ? 'Trong kho' : 'Bảo trì',
+      'Người sử dụng': a.owner || 'Chưa cấp phát',
+      'Cơ sở': a.facility,
+      'Vị trí': a.location || '',
+      'Ngày tạo': a.createdAt?.toDate().toLocaleString('vi-VN') || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Assets");
+    
+    let filename = 'Danh_sach_tai_san';
+    if (facilityFilter !== 'all') filename += `_${facilityFilter.replace(/\s+/g, '_')}`;
+    filename += `_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
+
+    XLSX.writeFile(workbook, filename);
+    toast.success('Xuất file Excel thành công!');
   };
 
   const filteredAssets = assets.filter(a => {
@@ -275,6 +302,13 @@ export default function AssetList() {
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={exportToExcel}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Xuất Excel
+          </button>
           <button 
             onClick={() => setIsFacilityModalOpen(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
@@ -593,20 +627,18 @@ export default function AssetList() {
                   </div>
                 </div>
 
-                {isAdmin && (
-                  <div className="mt-6 flex gap-2">
-                    <button className="flex-1 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-                      Chi tiết
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteAsset(asset.id)}
-                      className="px-3 py-2 text-slate-400 hover:text-red-600 border border-slate-200 rounded-lg hover:bg-red-50 transition-colors"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
+                <div className="mt-6 flex gap-2">
+                  <button className="flex-1 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                    Chi tiết
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteAsset(asset.id)}
+                    className="px-3 py-2 text-slate-400 hover:text-red-600 border border-slate-200 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Xóa"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))
