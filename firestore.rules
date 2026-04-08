@@ -103,12 +103,20 @@ service cloud.firestore {
 
     function isValidTicket(data) {
       return hasRequiredFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt']) &&
-             data.title is string && 
+             hasOnlyAllowedFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt', 'updatedAt', 'completedAt', 'description', 'category', 'assignedTo', 'facility', 'image']) &&
+             data.title is string && data.title.size() < 500 &&
              data.status in ['open', 'in-progress', 'closed'] &&
              data.priority in ['low', 'medium', 'high'] &&
              data.createdBy is string && 
              data.creatorEmail is string &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (data.updatedAt == null || data.updatedAt is timestamp) &&
+             (data.completedAt == null || data.completedAt is timestamp) &&
+             (data.description == null || (data.description is string && data.description.size() < 5000)) &&
+             (data.category == null || data.category is string) &&
+             (data.assignedTo == null || data.assignedTo is string) &&
+             (data.facility == null || data.facility is string) &&
+             (data.image == null || (data.image is string && data.image.size() < 2000000));
     }
 
     function isValidAsset(data) {
@@ -149,9 +157,55 @@ service cloud.firestore {
     // Collection Rules
     // ===============================================================
 
-    // Default permissive for debugging
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || 
+                      (isAuthenticated() && isOwner(userId) && 
+                       isValidUser(request.resource.data));
+      allow update: if isAdmin() || 
+                      (isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTicket(request.resource.data);
+      allow update: if isAuthenticated() && isValidTicket(request.resource.data);
+      allow delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.createdBy));
+
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isValidComment(request.resource.data);
+        allow update: if isAuthenticated() && isOwner(resource.data.userId) && isValidComment(request.resource.data);
+        allow delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.userId));
+      }
+    }
+
+    match /assets/{assetId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /facilities/{facilityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // Default deny
     match /{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if false;
     }
   }
 }
