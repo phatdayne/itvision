@@ -121,7 +121,7 @@ service cloud.firestore {
 
     function isValidAsset(data) {
       return hasRequiredFields(['name', 'type', 'status', 'createdAt']) &&
-             hasOnlyAllowedFields(['name', 'type', 'serial', 'status', 'owner', 'location', 'image', 'createdAt']) &&
+             hasOnlyAllowedFields(['name', 'type', 'serial', 'status', 'owner', 'location', 'image', 'createdAt', 'facility']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.type is string &&
              data.status in ['active', 'maintenance', 'retired'] &&
@@ -129,7 +129,8 @@ service cloud.firestore {
              (data.serial == null || (data.serial is string && data.serial.size() < 100)) &&
              (data.owner == null || (data.owner is string && data.owner.size() < 100)) &&
              (data.location == null || (data.location is string && data.location.size() < 100)) &&
-             (data.image == null || (data.image is string && data.image.size() < 2000000)); // Allow larger for base64
+             (data.facility == null || (data.facility is string && data.facility.size() < 100)) &&
+             (data.image == null || (data.image is string && data.image.size() < 2000000));
     }
 
     function isValidNotification(data) {
@@ -190,9 +191,9 @@ service cloud.firestore {
 
     match /facilities/{facilityId} {
       allow read: if isAuthenticated();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     match /notifications/{notificationId} {

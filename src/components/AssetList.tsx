@@ -31,6 +31,7 @@ export default function AssetList() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isFacilityModalOpen, setIsFacilityModalOpen] = React.useState(false);
   const [isCameraOpen, setIsCameraOpen] = React.useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -205,8 +206,6 @@ export default function AssetList() {
   };
 
   const handleDeleteAsset = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa tài sản này?')) return;
-
     const promise = deleteDoc(doc(db, 'assets', id));
 
     toast.promise(promise, {
@@ -217,6 +216,7 @@ export default function AssetList() {
 
     try {
       await promise;
+      setDeleteConfirmId(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'assets');
     }
@@ -632,7 +632,7 @@ export default function AssetList() {
                     Chi tiết
                   </button>
                   <button 
-                    onClick={() => handleDeleteAsset(asset.id)}
+                    onClick={() => setDeleteConfirmId(asset.id)}
                     className="px-3 py-2 text-slate-400 hover:text-red-600 border border-slate-200 rounded-lg hover:bg-red-50 transition-colors"
                     title="Xóa"
                   >
@@ -644,6 +644,40 @@ export default function AssetList() {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center"
+            >
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Xác nhận xóa</h3>
+              <p className="text-slate-500 mb-6">Bạn có chắc chắn muốn xóa tài sản này? Hành động này không thể hoàn tác.</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={() => handleDeleteAsset(deleteConfirmId)}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold transition-colors shadow-lg shadow-red-200"
+                >
+                  Xóa ngay
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
