@@ -148,29 +148,42 @@ export default function TicketList() {
     if (!user) return;
 
     try {
-      const docRef = await addDoc(collection(db, 'tickets'), {
-        ...newTicket,
+      const ticketData = {
+        title: newTicket.title,
+        description: newTicket.description || null,
+        category: newTicket.category || null,
+        priority: newTicket.priority,
+        assignedTo: newTicket.assignedTo || null,
+        status: newTicket.status,
+        facility: newTicket.facility || null,
+        image: newTicket.image || null,
         createdBy: user.uid,
         creatorEmail: user.email,
         createdAt: serverTimestamp(),
-      });
+      };
+
+      const docRef = await addDoc(collection(db, 'tickets'), ticketData);
 
       toast.success('Tạo ticket thành công!');
       setIsModalOpen(false);
 
       // Notify Admins
-      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-      adminsSnapshot.forEach(adminDoc => {
-        if (adminDoc.id !== user.uid) {
-          createNotification(
-            adminDoc.id,
-            'Ticket mới được tạo',
-            `Người dùng ${user.email} đã tạo ticket: ${newTicket.title}`,
-            'info',
-            '/tickets'
-          );
-        }
-      });
+      try {
+        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+        adminsSnapshot.forEach(adminDoc => {
+          if (adminDoc.id !== user.uid) {
+            createNotification(
+              adminDoc.id,
+              'Ticket mới được tạo',
+              `Người dùng ${user.email} đã tạo ticket: ${newTicket.title}`,
+              'info',
+              '/tickets'
+            );
+          }
+        });
+      } catch (notifyError) {
+        console.error("Error notifying admins:", notifyError);
+      }
 
       setNewTicket({
         title: '',
