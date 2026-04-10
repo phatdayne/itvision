@@ -215,9 +215,10 @@ export default function TicketList() {
   };
 
   const autoCreateAssetFromTicket = async (ticket: any) => {
+    console.log("Checking auto-creation for ticket:", ticket.id, "Category:", ticket.category);
     if (ticket.category === 'NewEquipment') {
       try {
-        await addDoc(collection(db, 'assets'), {
+        const assetData = {
           name: ticket.title,
           type: 'Thiết bị mới',
           status: 'active',
@@ -227,13 +228,18 @@ export default function TicketList() {
           createdAt: serverTimestamp(),
           serial: 'Đang cập nhật',
           owner: 'Chưa có'
-        });
+        };
+        
+        console.log("Attempting to auto-create asset with data:", assetData);
+        await addDoc(collection(db, 'assets'), assetData);
+        
         toast.info(`Đã tự động tạo tài sản mới từ ticket: ${ticket.title}`, {
           description: `Vị trí: ${ticket.facility || 'Chưa xác định'}`,
           duration: 5000
         });
       } catch (error) {
         console.error("Error auto-creating asset:", error);
+        toast.error("Lỗi khi tự động tạo tài sản. Vui lòng kiểm tra lại.");
       }
     }
   };

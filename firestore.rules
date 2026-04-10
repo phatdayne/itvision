@@ -122,7 +122,7 @@ service cloud.firestore {
     function isValidAsset(data) {
       return hasRequiredFields(['name', 'type', 'status', 'createdAt']) &&
              hasOnlyAllowedFields(['name', 'type', 'serial', 'status', 'owner', 'location', 'image', 'createdAt', 'facility']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 500 &&
              data.type is string &&
              data.status in ['active', 'maintenance', 'retired'] &&
              data.createdAt is timestamp &&
