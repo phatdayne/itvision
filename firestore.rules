@@ -104,19 +104,19 @@ service cloud.firestore {
     function isValidTicket(data) {
       return hasRequiredFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt']) &&
              hasOnlyAllowedFields(['title', 'status', 'priority', 'createdBy', 'creatorEmail', 'createdAt', 'updatedAt', 'completedAt', 'description', 'category', 'assignedTo', 'facility', 'image']) &&
-             data.title is string && data.title.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 500 &&
              data.status in ['open', 'in-progress', 'closed'] &&
              data.priority in ['low', 'medium', 'high'] &&
              data.createdBy is string && 
              data.creatorEmail is string &&
-             data.createdAt != null &&
+             data.createdAt is timestamp &&
              (data.updatedAt == null || data.updatedAt is timestamp) &&
              (data.completedAt == null || data.completedAt is timestamp) &&
-             (data.description == null || data.description is string) &&
-             (data.category == null || data.category is string) &&
+             (data.description == null || (data.description is string && data.description.size() < 5000)) &&
+             (data.category == null || (data.category is string && data.category in ['Hardware', 'Software', 'Network', 'Account', 'Contract', 'NewEquipment'])) &&
              (data.assignedTo == null || data.assignedTo is string) &&
              (data.facility == null || data.facility is string) &&
-             (data.image == null || data.image is string);
+             (data.image == null || (data.image is string && data.image.size() < 10485760)); // 10MB for Base64
     }
 
     function isValidAsset(data) {

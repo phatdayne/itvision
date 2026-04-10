@@ -395,6 +395,18 @@ export default function TicketList() {
     }
   };
 
+  const getCategoryLabel = (category: string) => {
+    switch (category) {
+      case 'Hardware': return 'Phần cứng';
+      case 'Software': return 'Phần mềm';
+      case 'Network': return 'Mạng';
+      case 'Account': return 'Tài khoản';
+      case 'Contract': return 'Hợp đồng';
+      case 'NewEquipment': return 'Mua mới thiết bị';
+      default: return category;
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-700';
@@ -485,6 +497,8 @@ export default function TicketList() {
                     <option value="Software">Phần mềm</option>
                     <option value="Network">Mạng</option>
                     <option value="Account">Tài khoản</option>
+                    <option value="Contract">Hợp đồng</option>
+                    <option value="NewEquipment">Mua mới thiết bị</option>
                   </select>
                 </div>
                 <div>
@@ -586,6 +600,8 @@ export default function TicketList() {
                       <option value="Software">Phần mềm</option>
                       <option value="Network">Mạng</option>
                       <option value="Account">Tài khoản</option>
+                      <option value="Contract">Hợp đồng</option>
+                      <option value="NewEquipment">Mua mới thiết bị</option>
                     </select>
                   </div>
                   <div>
@@ -728,6 +744,8 @@ export default function TicketList() {
                       <option value="Software">Phần mềm</option>
                       <option value="Network">Mạng</option>
                       <option value="Account">Tài khoản</option>
+                      <option value="Contract">Hợp đồng</option>
+                      <option value="NewEquipment">Mua mới thiết bị</option>
                     </select>
                   </div>
                   <div>
@@ -975,7 +993,7 @@ export default function TicketList() {
                         <div>
                           <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{ticket.title}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{ticket.category}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{getCategoryLabel(ticket.category)}</span>
                             {ticket.facility && (
                               <>
                                 <span className="text-slate-300">•</span>
