@@ -87,6 +87,10 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(fields);
     }
 
+    function fieldUnchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
@@ -174,7 +178,9 @@ service cloud.firestore {
                       request.resource.data.createdBy == request.auth.uid &&
                       isValidTicket(request.resource.data);
       allow update: if isAuthenticated() && 
-                      (isAdmin() || isOwner(resource.data.createdBy)) &&
+                      (isAdmin() || isOwner(resource.data.createdBy) || 
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'completedAt', 'description']))) &&
+                      (isAdmin() || (fieldUnchanged('createdBy') && fieldUnchanged('creatorEmail'))) &&
                       isValidTicket(request.resource.data);
       allow delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.createdBy));
 

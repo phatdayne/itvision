@@ -742,9 +742,10 @@ export default function TicketList() {
                   <input
                     required
                     type="text"
+                    disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                     value={editingTicket.title}
                     onChange={(e) => setEditingTicket({ ...editingTicket, title: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -761,9 +762,10 @@ export default function TicketList() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Cơ sở</label>
                     <select
                       required
+                      disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                       value={editingTicket.facility}
                       onChange={(e) => setEditingTicket({ ...editingTicket, facility: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="" disabled>Chọn cơ sở</option>
                       {facilities.map(f => (
@@ -774,9 +776,10 @@ export default function TicketList() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Danh mục</label>
                     <select
+                      disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                       value={editingTicket.category}
                       onChange={(e) => setEditingTicket({ ...editingTicket, category: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="Hardware">Phần cứng</option>
                       <option value="Software">Phần mềm</option>
@@ -789,9 +792,10 @@ export default function TicketList() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Mức độ ưu tiên</label>
                     <select
+                      disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                       value={editingTicket.priority}
                       onChange={(e) => setEditingTicket({ ...editingTicket, priority: e.target.value as any })}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="low">Thấp</option>
                       <option value="medium">Trung bình</option>
@@ -801,9 +805,10 @@ export default function TicketList() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Người xử lý</label>
                     <select
+                      disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                       value={editingTicket.assignedTo}
                       onChange={(e) => setEditingTicket({ ...editingTicket, assignedTo: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="">Chưa phân công</option>
                       <option value="Vinh">Vinh</option>
@@ -828,8 +833,9 @@ export default function TicketList() {
                   <div className="flex items-center gap-4">
                     <button
                       type="button"
+                      disabled={!isAdmin && user?.uid !== editingTicket.createdBy}
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Upload className="w-4 h-4" />
                       Thay đổi ảnh
@@ -844,13 +850,15 @@ export default function TicketList() {
                     {editingTicket.image && (
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
                         <img src={editingTicket.image} className="w-full h-full object-cover" alt="Preview" />
-                        <button
-                          type="button"
-                          onClick={() => setEditingTicket({ ...editingTicket, image: '' })}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                        {(!isAdmin && user?.uid !== editingTicket.createdBy) ? null : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingTicket({ ...editingTicket, image: '' })}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -892,7 +900,7 @@ export default function TicketList() {
                     <h3 className="text-xl font-bold text-slate-900">Thảo luận Ticket</h3>
                     <p className="text-sm text-slate-500 mt-1">#{selectedTicket.id.slice(-6)} - {selectedTicket.title}</p>
                   </div>
-                  {(isAdmin || user?.uid === selectedTicket.createdBy) && (
+                  {user && (
                     <div className="ml-4 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái:</span>
                       <select
