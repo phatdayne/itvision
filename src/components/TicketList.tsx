@@ -158,10 +158,11 @@ export default function TicketList() {
         facility: newTicket.facility || null,
         image: newTicket.image || null,
         createdBy: user.uid,
-        creatorEmail: user.email,
+        creatorEmail: user.email || '',
         createdAt: serverTimestamp(),
       };
 
+      console.log("Creating ticket with data:", ticketData);
       const docRef = await addDoc(collection(db, 'tickets'), ticketData);
 
       toast.success('Tạo ticket thành công!');
@@ -195,7 +196,9 @@ export default function TicketList() {
         facility: facilities[0]?.name || '',
         image: ''
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error creating ticket:", error);
+      toast.error('Không thể tạo ticket. Vui lòng thử lại sau.');
       handleFirestoreError(error, OperationType.CREATE, 'tickets');
     }
   };
