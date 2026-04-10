@@ -148,9 +148,15 @@ export default function TicketList() {
     if (!user) return;
 
     try {
+      const trimmedTitle = newTicket.title.trim();
+      if (!trimmedTitle) {
+        toast.error('Vui lòng nhập tiêu đề ticket.');
+        return;
+      }
+
       const ticketData = {
-        title: newTicket.title,
-        description: newTicket.description || null,
+        title: trimmedTitle,
+        description: newTicket.description?.trim() || null,
         category: newTicket.category || null,
         priority: newTicket.priority,
         assignedTo: newTicket.assignedTo || null,
@@ -160,6 +166,8 @@ export default function TicketList() {
         createdBy: user.uid,
         creatorEmail: user.email || '',
         createdAt: serverTimestamp(),
+        updatedAt: null,
+        completedAt: null
       };
 
       console.log("Creating ticket with data:", ticketData);
@@ -198,7 +206,10 @@ export default function TicketList() {
       });
     } catch (error: any) {
       console.error("Error creating ticket:", error);
-      toast.error('Không thể tạo ticket. Vui lòng thử lại sau.');
+      const errorMessage = error.message?.includes('permission-denied') 
+        ? 'Bạn không có quyền tạo ticket hoặc dữ liệu không hợp lệ.' 
+        : 'Không thể tạo ticket. Vui lòng thử lại sau.';
+      toast.error(errorMessage);
       handleFirestoreError(error, OperationType.CREATE, 'tickets');
     }
   };
