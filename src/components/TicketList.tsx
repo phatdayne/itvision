@@ -214,6 +214,30 @@ export default function TicketList() {
     }
   };
 
+  const autoCreateAssetFromTicket = async (ticket: any) => {
+    if (ticket.category === 'NewEquipment') {
+      try {
+        await addDoc(collection(db, 'assets'), {
+          name: ticket.title,
+          type: 'Thiết bị mới',
+          status: 'active',
+          facility: ticket.facility || 'Chưa xác định',
+          location: ticket.facility || 'Chưa xác định',
+          image: ticket.image || null,
+          createdAt: serverTimestamp(),
+          serial: 'Đang cập nhật',
+          owner: 'Chưa có'
+        });
+        toast.info(`Đã tự động tạo tài sản mới từ ticket: ${ticket.title}`, {
+          description: `Vị trí: ${ticket.facility || 'Chưa xác định'}`,
+          duration: 5000
+        });
+      } catch (error) {
+        console.error("Error auto-creating asset:", error);
+      }
+    }
+  };
+
   const handleUpdateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTicket) return;
@@ -239,6 +263,10 @@ export default function TicketList() {
       }
 
       await updateDoc(doc(db, 'tickets', editingTicket.id), updateData);
+
+      if (isNowClosing) {
+        await autoCreateAssetFromTicket(editingTicket);
+      }
 
       toast.success('Cập nhật ticket thành công!');
       setIsEditModalOpen(false);
@@ -293,6 +321,10 @@ export default function TicketList() {
 
       await updateDoc(doc(db, 'tickets', ticketId), updateData);
       
+      if (isNowClosing && originalTicket) {
+        await autoCreateAssetFromTicket(originalTicket);
+      }
+
       // Update local state if selectedTicket is open
       if (selectedTicket && selectedTicket.id === ticketId) {
         setSelectedTicket({ ...selectedTicket, status: newStatus });
