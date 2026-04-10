@@ -251,18 +251,26 @@ export default function TicketList() {
     try {
       const originalTicket = tickets.find(t => t.id === editingTicket.id);
       const isNowClosing = editingTicket.status === 'closed' && originalTicket?.status !== 'closed';
+      const isTicketOwner = user?.uid === editingTicket.createdBy;
+      const canEditAllFields = isAdmin || isTicketOwner;
       
-      const updateData: any = {
-        title: editingTicket.title,
-        description: editingTicket.description,
-        category: editingTicket.category,
-        priority: editingTicket.priority,
-        assignedTo: editingTicket.assignedTo,
+      let updateData: any = {
         status: editingTicket.status,
-        facility: editingTicket.facility || '',
-        image: editingTicket.image || '',
+        description: editingTicket.description,
         updatedAt: serverTimestamp()
       };
+
+      if (canEditAllFields) {
+        updateData = {
+          ...updateData,
+          title: editingTicket.title,
+          category: editingTicket.category,
+          priority: editingTicket.priority,
+          assignedTo: editingTicket.assignedTo,
+          facility: editingTicket.facility || null,
+          image: editingTicket.image || null,
+        };
+      }
 
       if (isNowClosing) {
         updateData.completedAt = serverTimestamp();
