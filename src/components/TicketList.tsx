@@ -42,6 +42,7 @@ export default function TicketList() {
   // Filter states
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [categoryFilter, setCategoryFilter] = React.useState('all');
+  const [facilityFilter, setFacilityFilter] = React.useState('all');
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
 
@@ -424,12 +425,13 @@ export default function TicketList() {
                          (t.assignedTo && t.assignedTo.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || t.category === categoryFilter;
+    const matchesFacility = facilityFilter === 'all' || t.facility === facilityFilter;
     
     const ticketDate = t.createdAt?.toDate() || new Date();
     const matchesStartDate = !startDate || ticketDate >= new Date(startDate);
     const matchesEndDate = !endDate || ticketDate <= new Date(endDate + 'T23:59:59');
 
-    return matchesSearch && matchesStatus && matchesCategory && matchesStartDate && matchesEndDate;
+    return matchesSearch && matchesStatus && matchesCategory && matchesFacility && matchesStartDate && matchesEndDate;
   });
 
   const getStatusIcon = (status: string) => {
@@ -465,6 +467,7 @@ export default function TicketList() {
   const resetFilters = () => {
     setStatusFilter('all');
     setCategoryFilter('all');
+    setFacilityFilter('all');
     setStartDate('');
     setEndDate('');
     setSearchTerm('');
@@ -517,7 +520,7 @@ export default function TicketList() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Trạng thái</label>
                   <select
@@ -545,6 +548,19 @@ export default function TicketList() {
                     <option value="Account">Tài khoản</option>
                     <option value="Contract">Hợp đồng</option>
                     <option value="NewEquipment">Mua mới thiết bị</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Cơ sở</label>
+                  <select
+                    value={facilityFilter}
+                    onChange={(e) => setFacilityFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  >
+                    <option value="all">Tất cả cơ sở</option>
+                    {facilities.map(f => (
+                      <option key={f.id} value={f.name}>{f.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1011,11 +1027,11 @@ export default function TicketList() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ticket / Cơ sở</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người yêu cầu</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người xử lý</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trạng thái</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ưu tiên</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ngày tạo</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người xử lý</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Người yêu cầu</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider"></th>
               </tr>
             </thead>
@@ -1060,22 +1076,6 @@ export default function TicketList() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                          {ticket.creatorEmail[0].toUpperCase()}
-                        </div>
-                        <span className="text-sm text-slate-700">{ticket.creatorEmail}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600">
-                          {ticket.assignedTo ? ticket.assignedTo[0].toUpperCase() : '?'}
-                        </div>
-                        <span className="text-sm text-slate-700">{ticket.assignedTo || 'Chưa phân công'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
                         {getStatusIcon(ticket.status)}
                         <span className="text-sm font-medium capitalize text-slate-700">
                           {ticket.status === 'open' ? 'Mở' : ticket.status === 'in-progress' ? 'Đang xử lý' : 'Đã đóng'}
@@ -1104,6 +1104,22 @@ export default function TicketList() {
                             })}
                           </div>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600">
+                          {ticket.assignedTo ? ticket.assignedTo[0].toUpperCase() : '?'}
+                        </div>
+                        <span className="text-sm text-slate-700">{ticket.assignedTo || 'Chưa phân công'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                          {ticket.creatorEmail[0].toUpperCase()}
+                        </div>
+                        <span className="text-sm text-slate-700">{ticket.creatorEmail}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
